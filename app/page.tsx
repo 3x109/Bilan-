@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col px-5 pb-10 pt-8">
@@ -49,12 +51,12 @@ export default function Home() {
         </li>
       </ul>
 
-      <a
-        href="#"
+      <Link
+        href="/commencer"
         className="mt-10 block bg-action px-6 py-4 text-center text-lg font-semibold text-white"
       >
         Commencer, c&apos;est gratuit
-      </a>
+      </Link>
     </main>
   );
 }

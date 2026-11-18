@@ -165,19 +165,17 @@ function Resultat({
       <p className="mt-3 text-xs text-gris-chaud">
         Estimation calculée à partir de tes réponses.
       </p>
-
-      <span
-        aria-disabled="true"
-        className="mt-8 block bg-action/50 px-6 py-4 text-center text-lg font-semibold text-white"
+              <Link
+        href="/apercu"
+        onClick={() => {
+          try {
+            sessionStorage.setItem(
+              "bilan",
+              JSON.stringify({ clients, minutes, tarif })
+            );
+          } catch {}
+        }}
+        className="mt-8 block bg-action px-6 py-4 text-center text-lg font-semibold text-white"
       >
-        Voir mon avant-goût (prochaine étape)
-      </span>
-      <button
-        onClick={onRecommencer}
-        className="mt-4 w-full py-3 text-center text-gris-chaud underline"
-      >
-        Refaire le calcul
-      </button>
-    </section>
-  );
-}
+        Voir mon premier bilan
+      </Link>

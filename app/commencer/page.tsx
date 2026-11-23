@@ -179,3 +179,12 @@ function Resultat({
       >
         Voir mon premier bilan
       </Link>
+      <button
+        onClick={onRecommencer}
+        className="mt-4 w-full py-3 text-center text-gris-chaud underline"
+      >
+        Refaire le calcul
+      </button>
+    </section>
+  );
+}

@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { loadStripe } from "@stripe/stripe-js";
+import {
+  EmbeddedCheckout,
+  EmbeddedCheckoutProvider,
+} from "@stripe/react-stripe-js";
+
+const cle = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = cle ? loadStripe(cle) : null;
 
 const FORMULES = [
   { id: "solo", nom: "Solo", prix: 19, clients: 3 },
@@ -22,7 +30,10 @@ const FAQ = [
   },
   {
     q: "Et si je veux arrêter ?",
-    r: "Tu résilies quand tu veux, sans préavis ni frais. Et pendant 14 jours, tu peux te faire rembourser en écrivant à " + EMAIL_REMBOURSEMENT + ".",
+    r:
+      "Tu résilies quand tu veux, sans préavis ni frais. Et pendant 14 jours, tu peux te faire rembourser en écrivant à " +
+      EMAIL_REMBOURSEMENT +
+      ".",
   },
   {
     q: "À quoi sert exactement ce que je paie ?",
@@ -36,6 +47,9 @@ const fr = (n: number) =>
 export default function Tarifs() {
   const [choix, setChoix] = useState("pro");
   const [gain, setGain] = useState<number | null>(null);
+  const [secret, setSecret] = useState<string | null>(null);
+  const [chargement, setChargement] = useState(false);
+  const [erreur, setErreur] = useState("");
 
   useEffect(() => {
     try {
@@ -48,7 +62,45 @@ export default function Tarifs() {
     } catch {}
   }, []);
 
+  useEffect(() => {
+    if (secret) {
+      document
+        .getElementById("paiement")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [secret]);
+
   const formule = FORMULES.find((f) => f.id === choix) ?? FORMULES[1];
+
+  function choisir(id: string) {
+    setChoix(id);
+    setSecret(null);
+    setErreur("");
+  }
+
+  async function payer() {
+    setChargement(true);
+    setErreur("");
+    try {
+      if (!stripePromise) throw new Error("clé manquante");
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formule: choix }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.clientSecret) throw new Error("session");
+      setSecret(data.clientSecret);
+    } catch {
+      setErreur(
+        "Le paiement n’a pas pu démarrer. Rien n’a été débité. Réessaie dans un instant, ou écris à " +
+          EMAIL_REMBOURSEMENT +
+          "."
+      );
+    } finally {
+      setChargement(false);
+    }
+  }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col px-5 pb-12 pt-6">
@@ -86,7 +138,7 @@ export default function Tarifs() {
           return (
             <button
               key={f.id}
-              onClick={() => setChoix(f.id)}
+              onClick={() => choisir(f.id)}
               aria-pressed={actif}
               className={`block w-full border-2 px-5 py-4 text-left ${
                 actif ? "border-action bg-white" : "border-filet"
@@ -101,10 +153,13 @@ export default function Tarifs() {
                     </span>
                   )}
                 </span>
-                <span className="text-lg font-semibold">{fr(f.prix)} €/mois</span>
+                <span className="text-lg font-semibold">
+                  {fr(f.prix)} €/mois
+                </span>
               </span>
               <span className="mt-1 block text-sm text-gris-chaud">
-                Jusqu’à {f.clients} clients · soit {fr(Math.round((f.prix / 30) * 100) / 100)} € par jour
+                Jusqu’à {f.clients} clients · soit{" "}
+                {fr(Math.round((f.prix / 30) * 100) / 100)} € par jour
               </span>
             </button>
           );
@@ -122,22 +177,55 @@ export default function Tarifs() {
         </p>
       </div>
 
-      <div className="mt-8">
-        <span
-          aria-disabled="true"
-          className="block bg-action/50 px-6 py-4 text-center text-lg font-semibold text-white"
-        >
-          Payer {fr(formule.prix)} € par mois
-        </span>
-        <p className="mt-2 text-center text-sm text-gris-chaud">
-          Sans engagement, résiliable à tout moment.
-        </p>
-        <p className="mt-1 text-center text-xs text-gris-chaud">
-          Paiement sécurisé : branché à l’étape suivante.
-        </p>
+      <div className="mt-8" id="paiement">
+        {secret && stripePromise ? (
+          <>
+            <EmbeddedCheckoutProvider
+              key={secret}
+              stripe={stripePromise}
+              options={{ fetchClientSecret: async () => secret }}
+            >
+              <EmbeddedCheckout />
+            </EmbeddedCheckoutProvider>
+            <p className="mt-3 text-center text-sm text-gris-chaud">
+              Sans engagement, résiliable à tout moment.
+            </p>
+            <button
+              onClick={() => setSecret(null)}
+              className="mt-2 w-full py-3 text-center text-gris-chaud underline"
+            >
+              Changer de formule
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={payer}
+              disabled={chargement}
+              className="block w-full bg-action px-6 py-4 text-center text-lg font-semibold text-white disabled:opacity-60"
+            >
+              {chargement
+                ? "Chargement…"
+                : `Payer ${fr(formule.prix)} € par mois`}
+            </button>
+            <p className="mt-2 text-center text-sm text-gris-chaud">
+              Sans engagement, résiliable à tout moment.
+            </p>
+            {erreur && (
+              <p
+                role="alert"
+                className="mt-3 border border-action px-4 py-3 text-sm"
+              >
+                {erreur}
+              </p>
+            )}
+          </>
+        )}
       </div>
 
-      <h2 className="mt-12 font-titre text-2xl font-bold">Questions fréquentes</h2>
+      <h2 className="mt-12 font-titre text-2xl font-bold">
+        Questions fréquentes
+      </h2>
       <div className="mt-4 border-t border-filet">
         {FAQ.map((item) => (
           <details key={item.q} className="border-b border-filet py-4">
